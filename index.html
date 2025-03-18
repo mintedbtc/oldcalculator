@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Old iPhone Calculator</title>
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overscroll-behavior: none;
+        }
+        
+        .calculator {
+            width: min(320px, 100vw - 20px);
+            height: min(568px, 100vh - 20px);
+            background-color: black;
+            border-radius: 30px;
+            padding: 0;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .display {
+            flex: 1;
+            display: flex;
+            justify-content: flex-end;
+            align-items: flex-end;
+            color: white;
+            text-align: right;
+            font-size: 4.5rem;
+            font-weight: 200;
+            padding: 0 20px 10px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: min(12px, 3vw);
+            padding: 0 12px 20px;
+        }
+        
+        button {
+            width: min(65px, 20vw);
+            height: min(65px, 20vw);
+            font-size: 1.8rem;
+            font-weight: 400;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: manipulation;
+        }
+        
+        .gray { 
+            background-color: #a5a5a5; 
+            color: black;
+        }
+        
+        .orange { 
+            background-color: #ff9500; 
+            color: white; 
+        }
+        
+        .black { 
+            background-color: #333; 
+            color: white; 
+        }
+        
+        .wide { 
+            grid-column: span 2; 
+            width: min(142px, 42vw);
+            border-radius: 35px;
+            justify-content: flex-start;
+            padding-left: min(25px, 7vw);
+        }
+        
+        button:active {
+            opacity: 0.7;
+        }
+        
+        @media (max-height: 600px) {
+            .buttons {
+                gap: 8px;
+                padding: 0 8px 10px;
+            }
+            
+            button {
+                width: min(60px, 18vw);
+                height: min(60px, 18vw);
+                font-size: 1.5rem;
+            }
+            
+            .wide {
+                width: min(130px, 38vw);
+                padding-left: min(20px, 6vw);
+            }
+            
+            .display {
+                font-size: 4rem;
+                padding: 0 15px 8px;
+            }
+        }
+        
+        @media (max-width: 350px) {
+            .display {
+                font-size: 3.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="calculator">
+        <div class="display" id="display">0</div>
+        <div class="buttons">
+            <button class="gray" onclick="clearDisplay()" ontouchstart="">AC</button>
+            <button class="gray" onclick="toggleSign()" ontouchstart="">±</button>
+            <button class="gray" onclick="percentage()" ontouchstart="">%</button>
+            <button class="orange" onclick="operate('/')" ontouchstart="">÷</button>
+
+            <button class="black" onclick="appendNumber(7)" ontouchstart="">7</button>
+            <button class="black" onclick="appendNumber(8)" ontouchstart="">8</button>
+            <button class="black" onclick="appendNumber(9)" ontouchstart="">9</button>
+            <button class="orange" onclick="operate('*')" ontouchstart="">×</button>
+
+            <button class="black" onclick="appendNumber(4)" ontouchstart="">4</button>
+            <button class="black" onclick="appendNumber(5)" ontouchstart="">5</button>
+            <button class="black" onclick="appendNumber(6)" ontouchstart="">6</button>
+            <button class="orange" onclick="operate('-')" ontouchstart="">−</button>
+
+            <button class="black" onclick="appendNumber(1)" ontouchstart="">1</button>
+            <button class="black" onclick="appendNumber(2)" ontouchstart="">2</button>
+            <button class="black" onclick="appendNumber(3)" ontouchstart="">3</button>
+            <button class="orange" onclick="operate('+')" ontouchstart="">+</button>
+
+            <button class="black wide" onclick="appendNumber(0)" ontouchstart="">0</button>
+            <button class="black" onclick="appendDecimal()" ontouchstart="">.</button>
+            <button class="orange" onclick="calculateResult()" ontouchstart="">=</button>
+        </div>
+    </div>
+
+    <script>
+        // Prevent elastic scrolling/bounce on iOS
+        document.addEventListener('touchmove', function(event) {
+            event.preventDefault();
+        }, { passive: false });
+        
+        // Prevent zooming when double-tapping
+        document.addEventListener('dblclick', function(e) {
+            e.preventDefault();
+        });
+        
+        let currentInput = '';
+        let operator = '';
+        let previousInput = '';
+        const MAX_DISPLAY_LENGTH = 9; // Maximum number of digits to display
+
+        function formatNumber(value) {
+            // Convert value to number to handle calculations
+            let num = typeof value === 'string' ? parseFloat(value) : value;
+            
+            // Check if the number is too large or has too many decimals
+            if (Math.abs(num) >= 1e10 || (Math.abs(num) < 0.0000001 && num !== 0)) {
+                // Use scientific notation for very large or very small numbers
+                return num.toExponential(2);
+            } else {
+                // Convert to string for display
+                let strNum = String(num);
+                
+                // If it has a decimal point
+                if (strNum.includes('.')) {
+                    let [intPart, decPart] = strNum.split('.');
+                    
+                    // If the integer part is too long, use scientific notation
+                    if (intPart.length > MAX_DISPLAY_LENGTH) {
+                        return num.toExponential(2);
+                    }
+                    
+                    // If combined length is too long, truncate the decimal part
+                    if (intPart.length + decPart.length > MAX_DISPLAY_LENGTH) {
+                        const decimalPlaces = Math.max(0, MAX_DISPLAY_LENGTH - intPart.length - 1);
+                        return num.toFixed(decimalPlaces);
+                    }
+                } else if (strNum.length > MAX_DISPLAY_LENGTH) {
+                    // If integer is too long, use scientific notation
+                    return num.toExponential(2);
+                }
+                
+                // No formatting needed
+                return strNum;
+            }
+        }
+
+        function updateDisplay(value) {
+            // Format the value before displaying
+            const formattedValue = value === '' ? '0' : formatNumber(value);
+            document.getElementById('display').textContent = formattedValue;
+            
+            // Adjust font size based on text length
+            const display = document.getElementById('display');
+            if (formattedValue.length > 9) {
+                display.style.fontSize = '3.5rem';
+            } else if (formattedValue.length > 7) {
+                display.style.fontSize = '4rem';
+            } else {
+                display.style.fontSize = '4.5rem';
+            }
+
+            // Additional font size adjustments for small screens
+            if (window.innerWidth <= 350) {
+                if (formattedValue.length > 9) {
+                    display.style.fontSize = '3rem';
+                } else if (formattedValue.length > 7) {
+                    display.style.fontSize = '3.3rem';
+                } else {
+                    display.style.fontSize = '3.8rem';
+                }
+            }
+        }
+
+        function getInputLength() {
+            // Get visible length (count all digits, decimal point counts as zero space)
+            if (currentInput === '') return 0;
+            
+            // Count negative sign if present
+            const hasNegativeSign = currentInput.startsWith('-') ? 1 : 0;
+            
+            // Count digits excluding decimal point
+            const digitsCount = currentInput.replace(/[^\d]/g, '').length;
+            
+            return hasNegativeSign + digitsCount;
+        }
+
+        function appendNumber(number) {
+            if (currentInput === '0') {
+                currentInput = String(number);
+            } else {
+                // Strictly enforce maximum display length (count digits only)
+                if (getInputLength() >= MAX_DISPLAY_LENGTH) {
+                    return; // Do not allow more input
+                }
+                currentInput += number;
+            }
+            updateDisplay(currentInput);
+        }
+
+        function appendDecimal() {
+            if (!currentInput.includes('.')) {
+                if (currentInput === '') {
+                    currentInput = '0';
+                }
+                currentInput += '.';
+                updateDisplay(currentInput);
+            }
+        }
+
+        function clearDisplay() {
+            currentInput = '';
+            previousInput = '';
+            operator = '';
+            updateDisplay('0');
+            
+            // Reset font size based on screen width
+            const display = document.getElementById('display');
+            display.style.fontSize = window.innerWidth <= 350 ? '3.8rem' : '4.5rem';
+        }
+
+        function toggleSign() {
+            if (currentInput) {
+                if (currentInput.startsWith('-')) {
+                    currentInput = currentInput.substring(1);
+                } else {
+                    // Only add negative sign if we have room
+                    if (getInputLength() >= MAX_DISPLAY_LENGTH) {
+                        // If at limit, don't allow sign change that would overflow
+                        return;
+                    }
+                    currentInput = '-' + currentInput;
+                }
+                updateDisplay(currentInput);
+            }
+        }
+
+        function percentage() {
+            if (currentInput) {
+                const result = parseFloat(currentInput) / 100;
+                currentInput = String(result);
+                updateDisplay(currentInput);
+            }
+        }
+
+        function operate(op) {
+            if (currentInput === '') return;
+            if (previousInput !== '') {
+                calculateResult();
+            }
+            operator = op;
+            previousInput = currentInput;
+            currentInput = '';
+        }
+
+        function calculateResult() {
+            if (previousInput === '' || currentInput === '') return;
+            let result;
+            let num1 = parseFloat(previousInput);
+            let num2 = parseFloat(currentInput);
+            switch (operator) {
+                case '+': result = num1 + num2; break;
+                case '-': result = num1 - num2; break;
+                case '*': result = num1 * num2; break;
+                case '/': result = num1 / num2; break;
+            }
+            updateDisplay(result);
+            currentInput = String(result);
+            previousInput = '';
+            operator = '';
+        }
+
+        // Adjust display size on window resize
+        window.addEventListener('resize', function() {
+            // Re-run the update display to adjust font size
+            updateDisplay(currentInput || '0');
+        });
+
+        // Initial font size adjustment
+        window.addEventListener('load', function() {
+            updateDisplay('0');
+        });
+    </script>
+
+</body>
+</html>
